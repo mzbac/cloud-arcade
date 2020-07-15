@@ -190,12 +190,11 @@ func coreInputState(port C.unsigned, device C.unsigned, index C.unsigned, id C.u
 			return 0
 		}
 		axis := index * 2 + id
-		for k := range NAEmulator.controllersMap {
-			value := NAEmulator.controllersMap[k][port].axes[axis]
-			if value != 0 {
-				return (C.int16_t)(value)
-			}
+		value := NAEmulator.controllersMap[port].axes[axis]
+		if value != 0 {
+			return (C.int16_t)(value)
 		}
+		
 	}
 
 	if id >= 255 || index > 0 || device != C.RETRO_DEVICE_JOYPAD {
@@ -208,12 +207,14 @@ func coreInputState(port C.unsigned, device C.unsigned, index C.unsigned, id C.u
 		return 0
 	}
 
+	
 	// check if any player is pressing that key
-	for k := range NAEmulator.controllersMap {
-		if ((NAEmulator.controllersMap[k][port].keyState >> uint(key)) & 1) == 1 {
+	if(len(NAEmulator.controllersMap)!=0){
+		if ((NAEmulator.controllersMap[port].keyState >> uint(key)) & 1) == 1 {
 			return 1
 		}
 	}
+	
 	return 0
 }
 

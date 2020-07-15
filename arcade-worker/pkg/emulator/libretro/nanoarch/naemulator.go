@@ -69,7 +69,7 @@ type naEmulator struct {
 	gameName        string
 	isSavingLoading bool
 
-	controllersMap map[string][]constrollerState
+	controllersMap []constrollerState
 	done           chan struct{}
 
 	// lock to lock uninteruptable operation
@@ -85,7 +85,6 @@ type VideoExporter struct {
 type InputEvent struct {
 	RawState  []byte
 	PlayerIdx int
-	ConnID    string
 }
 
 // GameFrame contains image and timeframe
@@ -110,7 +109,7 @@ func NewNAEmulator(etype string, roomID string, inputChannel <-chan InputEvent) 
 		imageChannel:   imageChannel,
 		audioChannel:   audioChannel,
 		inputChannel:   inputChannel,
-		controllersMap: map[string][]constrollerState{},
+		controllersMap: []constrollerState{},
 		roomID:         roomID,
 		done:           make(chan struct{}, 1),
 		lock:           &sync.Mutex{},
@@ -134,19 +133,14 @@ func (na *naEmulator) listenInput() {
 	// we decode the bitmap and send to channel
 	for inpEvent := range NAEmulator.inputChannel {
 		inpBitmap := uint16(inpEvent.RawState[1])<<8 + uint16(inpEvent.RawState[0])
-		if inpBitmap == 0xFFFF {
-			// terminated
-			delete(na.controllersMap, inpEvent.ConnID)
-			continue
+
+		if(len(na.controllersMap)==0){
+			na.controllersMap = make([]constrollerState, maxPort)
 		}
 
-		if _, ok := na.controllersMap[inpEvent.ConnID]; !ok {
-			na.controllersMap[inpEvent.ConnID] = make([]constrollerState, maxPort)
-		}
-
-		na.controllersMap[inpEvent.ConnID][inpEvent.PlayerIdx].keyState = inpBitmap
+		na.controllersMap[inpEvent.PlayerIdx].keyState = inpBitmap
 		for i := 0; i < numAxes && (i+1)*2+1 < len(inpEvent.RawState); i++ {
-			na.controllersMap[inpEvent.ConnID][inpEvent.PlayerIdx].axes[i] = int16(inpEvent.RawState[(i+1)*2+1])<<8 + int16(inpEvent.RawState[(i+1)*2])
+			na.controllersMap[inpEvent.PlayerIdx].axes[i] = int16(inpEvent.RawState[(i+1)*2+1])<<8 + int16(inpEvent.RawState[(i+1)*2])
 		}
 	}
 }
