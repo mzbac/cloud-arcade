@@ -64,7 +64,7 @@ func NewRoom() *Room {
 
 		emuName, _ := config.FileTypeToEmulator[game.Type]
 
-		director, imageChannel, audioChannel := nanoarch.Init(emuName, room.ID, true, inputChannel)
+		director, imageChannel, audioChannel := nanoarch.Init(emuName,room.ID, inputChannel)
 		room.imageChannel = imageChannel
 		room.emulator = director
 		room.audioChannel = audioChannel
@@ -234,4 +234,22 @@ func (r *Room) startWebRTCSession(peerconnection *WebRTCClient.WebRTCClient) {
 	}
 
 	log.Println("Peerconn done")
+}
+
+func (r *Room) RemoveSession(w *WebRTCClient.WebRTCClient) {
+	log.Println("Cleaning session: ", w.ID)
+	// TODO: get list of r.rtcSessions in lock
+	for i, s := range r.rtcSessions {
+		log.Println("found session: ", w.ID)
+		if s.ID == w.ID {
+			r.rtcSessions = append(r.rtcSessions[:i], r.rtcSessions[i+1:]...)
+			log.Println("Removed session ", s.ID, " from room: ", r.ID)
+			break
+		}
+	}
+	// Detach input. Send end signal
+	select {
+	case r.inputChannel <- nanoarch.InputEvent{RawState: []byte{0xFF, 0xFF}, ConnID: w.ID}:
+	default:
+	}
 }

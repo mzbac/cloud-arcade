@@ -47,6 +47,7 @@ func Decode(in string, obj interface{}) error {
 
 // WebRTC connection
 type WebRTCClient struct {
+	ID string
 	connection  *webrtc.PeerConnection
 	isConnected bool
 	isClosed    bool
