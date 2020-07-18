@@ -1,9 +1,10 @@
 package main
 
 import (
-	"time"
 	"encoding/json"
 	"log"
+	"time"
+
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -17,11 +18,7 @@ const (
 
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
 )
-
 
 type Client struct {
 	id string
@@ -30,16 +27,15 @@ type Client struct {
 
 	recvCallback map[string]func(req Message)
 
-	send chan string
+	send chan Message
 
 	unregister chan *Client
 }
 
-
 type Message struct {
-	ID string `json:"id"`
-	Data string `json:"data"`
-	SessionID string `json:"session_id"`
+	ID        string `json:"id"`
+	Data      string `json:"data"`
+	SessionID string `json:"sessionID"`
 }
 
 func NewClient(conn *websocket.Conn) *Client {
@@ -47,10 +43,10 @@ func NewClient(conn *websocket.Conn) *Client {
 	recvCallback := map[string]func(Message){}
 
 	return &Client{
-		id:   id,
-		conn: conn,
+		id:           id,
+		conn:         conn,
 		recvCallback: recvCallback,
-		send: make(chan string, 10),
+		send:         make(chan Message, 10),
 	}
 }
 
@@ -59,7 +55,6 @@ func (c *Client) ListenRecv() {
 		c.unregister <- c
 		c.conn.Close()
 	}()
-	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	for {
 		_, message, err := c.conn.ReadMessage()
@@ -69,13 +64,15 @@ func (c *Client) ListenRecv() {
 			}
 			break
 		}
+
 		wspacket := Message{}
 		err = json.Unmarshal(message, &wspacket)
 
 		if err != nil {
 			log.Println("Warn: error decoding", message)
 			continue
-		}		
+		}
+		log.Println("received message :", wspacket.ID)
 
 		if callback, ok := c.recvCallback[wspacket.ID]; ok {
 			go callback(wspacket)
@@ -84,9 +81,7 @@ func (c *Client) ListenRecv() {
 }
 
 func (c *Client) ListenSend() {
-	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		ticker.Stop()
 		c.conn.Close()
 	}()
 	for {

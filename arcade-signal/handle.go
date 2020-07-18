@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
-	"github.com/gorilla/websocket"
 
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
@@ -12,7 +12,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
-		},
+	},
 }
 
 func ServeBrowserWs(server *Server, w http.ResponseWriter, r *http.Request) {
@@ -21,11 +21,12 @@ func ServeBrowserWs(server *Server, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	client := NewClient(conn);
-	client.unregister =server.unregisterBrowserClient
+	client := NewClient(conn)
+	client.unregister = server.unregisterBrowserClient
 	server.registerBrowserClient <- client
 
 	// to do register recv handler
+	server.RouteBrowser(client)
 	go client.ListenRecv()
 	go client.ListenSend()
 }
@@ -36,11 +37,13 @@ func ServeWorkerWs(server *Server, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	client := NewClient(conn);
-	client.unregister =server.unregisterWorkerClients
+	client := NewClient(conn)
+	client.unregister = server.unregisterWorkerClients
 	server.registerWorkerClients <- client
 
+	log.Println("worker id :", client.id)
 	// to do register recv handler
+	server.RouteWorker(client)
 	go client.ListenRecv()
 	go client.ListenSend()
 }
