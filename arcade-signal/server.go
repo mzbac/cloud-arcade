@@ -34,6 +34,13 @@ func (h *Server) run() {
 			h.workerClients[client] = true
 		case client := <-h.unregisterBrowserClient:
 			if _, ok := h.browserClients[client]; ok {
+				for k := range h.workerClients {
+					req := Message{
+						ID:        "terminateSession",
+						SessionID: client.id,
+					}
+					k.send <- req
+				}
 				delete(h.browserClients, client)
 				close(client.send)
 			}

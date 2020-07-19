@@ -3,12 +3,13 @@ package WebRTCClient
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/config"
-	"runtime/debug"
 	"fmt"
 	"log"
-	"time"
 	"math/rand"
+	"runtime/debug"
+	"time"
+
+	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/config"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
@@ -47,16 +48,15 @@ func Decode(in string, obj interface{}) error {
 
 // WebRTC connection
 type WebRTCClient struct {
-	ID string
+	ID          string
 	connection  *webrtc.PeerConnection
 	isConnected bool
 	isClosed    bool
 	// for yuvI420 image
-	ImageChannel    chan WebFrame
-	AudioChannel    chan []byte
-	VoiceInChannel  chan []byte
-	VoiceOutChannel chan []byte
-	InputChannel    chan []byte
+	ImageChannel chan WebFrame
+	AudioChannel chan []byte
+
+	InputChannel chan []byte
 
 	Done     bool
 	lastTime time.Time
@@ -65,11 +65,9 @@ type WebRTCClient struct {
 
 func NewWebRTC() *WebRTCClient {
 	w := &WebRTCClient{
-		ImageChannel:    make(chan WebFrame, 30),
-		AudioChannel:    make(chan []byte, 1),
-		VoiceInChannel:  make(chan []byte, 1),
-		VoiceOutChannel: make(chan []byte, 1),
-		InputChannel:    make(chan []byte, 100),
+		ImageChannel: make(chan WebFrame, 30),
+		AudioChannel: make(chan []byte, 1),
+		InputChannel: make(chan []byte, 100),
 	}
 	return w
 }
@@ -99,7 +97,7 @@ func (w *WebRTCClient) StartClient(iceCB OnIceCallback) (string, error) {
 
 	// add video track
 	videoTrack, err = w.connection.NewTrack(webrtc.DefaultPayloadTypeH264, rand.Uint32(), "video", "game-video")
-	
+
 	if err != nil {
 		return "", err
 	}
@@ -210,8 +208,7 @@ func (w *WebRTCClient) StopClient() {
 	// NOTE: ImageChannel is waiting for input. Close in writer is not correct for this
 	close(w.ImageChannel)
 	close(w.AudioChannel)
-	close(w.VoiceInChannel)
-	close(w.VoiceOutChannel)
+	close(w.InputChannel)
 }
 
 func (w *WebRTCClient) startStreaming(vp8Track *webrtc.Track, opusTrack *webrtc.Track) {

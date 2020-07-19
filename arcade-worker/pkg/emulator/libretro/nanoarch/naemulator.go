@@ -9,6 +9,7 @@ import (
 	"net"
 	"sync"
 	"time"
+
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/config"
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/util"
 )
@@ -133,8 +134,7 @@ func (na *naEmulator) listenInput() {
 	// we decode the bitmap and send to channel
 	for inpEvent := range NAEmulator.inputChannel {
 		inpBitmap := uint16(inpEvent.RawState[1])<<8 + uint16(inpEvent.RawState[0])
-
-		if(len(na.controllersMap)==0){
+		if len(na.controllersMap) == 0 {
 			na.controllersMap = make([]constrollerState, maxPort)
 		}
 

@@ -1,22 +1,21 @@
 package room
 
 import (
-	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/util"
-	"runtime"
-	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/WebRTCClient"
 	"fmt"
 	"log"
+	"runtime"
+
+	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/WebRTCClient"
+	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/util"
 	"gopkg.in/hraban/opus.v2"
 
-	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/encoder/h264encoder"
-	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/encoder"
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/config"
-	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/util/gamelist"
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/emulator"
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/emulator/libretro/nanoarch"
+	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/encoder"
+	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/encoder/h264encoder"
+	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/util/gamelist"
 )
-
-
 
 type Room struct {
 	ID string
@@ -30,6 +29,9 @@ type Room struct {
 	inputChannel chan<- nanoarch.InputEvent
 
 	rtcSessions []*WebRTCClient.WebRTCClient
+
+	RegisterSessionChannel   chan *WebRTCClient.WebRTCClient
+	UnRegisterSessionChannel chan *WebRTCClient.WebRTCClient
 
 	// State of room
 	IsRunning bool
@@ -48,15 +50,19 @@ func NewRoom() *Room {
 	gameInfo := gamelist.GetGameInfo("/home/anchen/dev/cloudArcade/arcade-worker/assets/games/kof97.zip")
 
 	inputChannel := make(chan nanoarch.InputEvent, 100)
+	sessionChannel := make(chan *WebRTCClient.WebRTCClient)
+	unregisterSessionChannel := make(chan *WebRTCClient.WebRTCClient)
 
 	room := &Room{
 		ID: "roomID",
 
-		inputChannel:    inputChannel,
-		imageChannel:    nil,
-		IsRunning:       true,
-		rtcSessions:     []*WebRTCClient.WebRTCClient{},
-		Done: make(chan struct{}, 1),
+		inputChannel:             inputChannel,
+		imageChannel:             nil,
+		IsRunning:                true,
+		rtcSessions:              []*WebRTCClient.WebRTCClient{},
+		Done:                     make(chan struct{}, 1),
+		RegisterSessionChannel:   sessionChannel,
+		UnRegisterSessionChannel: unregisterSessionChannel,
 	}
 
 	// Check if room is on local storage, if not, pull from GCS to local storage
@@ -64,11 +70,10 @@ func NewRoom() *Room {
 
 		emuName, _ := config.FileTypeToEmulator[game.Type]
 
-		director, imageChannel, audioChannel := nanoarch.Init(emuName,room.ID, inputChannel)
+		director, imageChannel, audioChannel := nanoarch.Init(emuName, room.ID, inputChannel)
 		room.imageChannel = imageChannel
 		room.emulator = director
 		room.audioChannel = audioChannel
-		
 
 		gameMeta := room.emulator.LoadMeta(game.Path)
 
@@ -87,13 +92,36 @@ func NewRoom() *Room {
 		// Spawn video and audio encoding for webRTC
 		go room.startVideo(encoderW, encoderH, config.CODEC_H264)
 		go room.startAudio(gameMeta.AudioSampleRate)
-		
+
 		room.emulator.Start()
 
 		// TODO: do we need GC, we can remove it
 		runtime.GC()
 	}(gameInfo)
 
+	go func() {
+		for {
+			select {
+			case s := <-room.RegisterSessionChannel:
+				for _, ss := range room.rtcSessions {
+					if ss == s {
+						break
+					}
+				}
+				room.rtcSessions = append(room.rtcSessions, s)
+
+				go room.startWebRTCSession(s, len(room.rtcSessions)-1)
+
+			case s := <-room.UnRegisterSessionChannel:
+				for i, ss := range room.rtcSessions {
+					if ss == s {
+						room.rtcSessions = append(room.rtcSessions[:i], room.rtcSessions[i+1:]...)
+						break
+					}
+				}
+			}
+		}
+	}()
 	return room
 }
 
@@ -133,7 +161,7 @@ func (r *Room) startVideo(width, height int, videoEncoderType string) {
 				// fanout imageChannel
 				if webRTC.IsConnected() {
 					// NOTE: can block here
-					webRTC.ImageChannel <- WebRTCClient.WebFrame{ Data: data.Data, Timestamp: data.Timestamp }
+					webRTC.ImageChannel <- WebRTCClient.WebFrame{Data: data.Data, Timestamp: data.Timestamp}
 				}
 			}
 		}
@@ -141,7 +169,7 @@ func (r *Room) startVideo(width, height int, videoEncoderType string) {
 
 	for image := range r.imageChannel {
 		if len(einput) < cap(einput) {
-			einput <- encoder.InFrame{ Image: image.Image, Timestamp: image.Timestamp }
+			einput <- encoder.InFrame{Image: image.Image, Timestamp: image.Timestamp}
 		}
 	}
 	log.Println("Room ", r.ID, " video channel closed")
@@ -203,14 +231,7 @@ func (r *Room) startAudio(sampleRate int) {
 	log.Println("Room ", r.ID, " audio channel closed")
 }
 
-func (r *Room) AddConnectionToRoom(peerconnection *WebRTCClient.WebRTCClient) {
-	r.rtcSessions = append(r.rtcSessions, peerconnection)
-
-	go r.startWebRTCSession(peerconnection)
-}
-
-
-func (r *Room) startWebRTCSession(peerconnection *WebRTCClient.WebRTCClient) {
+func (r *Room) startWebRTCSession(peerconnection *WebRTCClient.WebRTCClient, PlayerIdx int) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Println("Warn: Recovered when sent to close inputChannel")
@@ -227,29 +248,11 @@ func (r *Room) startWebRTCSession(peerconnection *WebRTCClient.WebRTCClient) {
 
 		if peerconnection.IsConnected() {
 			select {
-			case r.inputChannel <- nanoarch.InputEvent{RawState: input, PlayerIdx:0}:
+			case r.inputChannel <- nanoarch.InputEvent{RawState: input, PlayerIdx: PlayerIdx}:
 			default:
 			}
 		}
 	}
 
 	log.Println("Peerconn done")
-}
-
-func (r *Room) RemoveSession(w *WebRTCClient.WebRTCClient) {
-	log.Println("Cleaning session: ", w.ID)
-	// TODO: get list of r.rtcSessions in lock
-	for i, s := range r.rtcSessions {
-		log.Println("found session: ", w.ID)
-		if s.ID == w.ID {
-			r.rtcSessions = append(r.rtcSessions[:i], r.rtcSessions[i+1:]...)
-			log.Println("Removed session ", s.ID, " from room: ", r.ID)
-			break
-		}
-	}
-	// Detach input. Send end signal
-	select {
-	case r.inputChannel <- nanoarch.InputEvent{RawState: []byte{0xFF, 0xFF}}:
-	default:
-	}
 }

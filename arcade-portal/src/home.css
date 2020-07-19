@@ -1,0 +1,10 @@
+.site-card-wrapper {
+  padding: 30px;
+  background: #ececec;
+  height: 100vh;
+}
+
+.arcadeCard {
+  align-items: center;
+  justify-content: center;
+}

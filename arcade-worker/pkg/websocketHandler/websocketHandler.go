@@ -88,6 +88,8 @@ func (h *Handler) listenRecv(c *websocket.Conn) {
 	}()
 	// c.SetReadLimit(maxMessageSize)
 	c.SetReadDeadline(time.Now().Add(pongWait))
+	c.SetPongHandler(func(string) error { c.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+
 	for {
 		_, message, err := c.ReadMessage()
 
@@ -112,7 +114,10 @@ func (h *Handler) listenRecv(c *websocket.Conn) {
 }
 
 func (h *Handler) listenSend(c *websocket.Conn) {
+	ticker := time.NewTicker(pingPeriod)
+
 	defer func() {
+		ticker.Stop()
 		c.Close()
 	}()
 	for {
@@ -129,6 +134,11 @@ func (h *Handler) listenSend(c *websocket.Conn) {
 				return
 			}
 			c.WriteMessage(websocket.TextMessage, data)
+		case <-ticker.C:
+			c.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }
@@ -191,6 +201,17 @@ func (h *Handler) route() {
 			return
 		}
 
-		h.room.AddConnectionToRoom(session)
+		h.room.RegisterSessionChannel <- session
+	}
+
+	h.recvCallback["terminateSession"] = func(req Message) {
+		log.Println("received terminateSession")
+		session, ok := h.sessions[req.SessionID]
+		if ok {
+			session.StopClient()
+			delete(h.sessions, req.SessionID)
+			h.room.UnRegisterSessionChannel <- session
+
+		}
 	}
 }

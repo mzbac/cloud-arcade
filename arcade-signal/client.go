@@ -56,6 +56,7 @@ func (c *Client) ListenRecv() {
 		c.conn.Close()
 	}()
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
@@ -81,7 +82,9 @@ func (c *Client) ListenRecv() {
 }
 
 func (c *Client) ListenSend() {
+	ticker := time.NewTicker(pingPeriod)
 	defer func() {
+		ticker.Stop()
 		c.conn.Close()
 	}()
 	for {
@@ -98,6 +101,11 @@ func (c *Client) ListenSend() {
 				return
 			}
 			c.conn.WriteMessage(websocket.TextMessage, data)
+		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }
