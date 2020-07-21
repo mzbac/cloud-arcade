@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"sync"
 
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/WebRTCClient"
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/util"
@@ -40,22 +41,21 @@ type Room struct {
 	// List of peerconnections in the room
 	emulator emulator.CloudEmulator
 	// GameName
-	gameName string
-	// Meta of game
-	//meta emulator.Meta
+	GameName     string
+	sessionsLock *sync.Mutex
 }
 
 func NewRoom() *Room {
 
-	gameInfo := gamelist.GetGameInfo("/home/anchen/dev/cloudArcade/arcade-worker/assets/games/kof97.zip")
+	gameInfo := gamelist.GetGameInfo("./assets/games/kof97.zip")
 
 	inputChannel := make(chan nanoarch.InputEvent, 100)
 	sessionChannel := make(chan *WebRTCClient.WebRTCClient)
 	unregisterSessionChannel := make(chan *WebRTCClient.WebRTCClient)
 
 	room := &Room{
-		ID: "roomID",
-
+		ID:                       "roomID",
+		GameName:                 "The King of Fighters '97",
 		inputChannel:             inputChannel,
 		imageChannel:             nil,
 		IsRunning:                true,
@@ -63,6 +63,7 @@ func NewRoom() *Room {
 		Done:                     make(chan struct{}, 1),
 		RegisterSessionChannel:   sessionChannel,
 		UnRegisterSessionChannel: unregisterSessionChannel,
+		sessionsLock:             &sync.Mutex{},
 	}
 
 	// Check if room is on local storage, if not, pull from GCS to local storage
@@ -108,14 +109,19 @@ func NewRoom() *Room {
 						break
 					}
 				}
+				room.sessionsLock.Lock()
 				room.rtcSessions = append(room.rtcSessions, s)
+				room.sessionsLock.Unlock()
 
 				go room.startWebRTCSession(s, len(room.rtcSessions)-1)
 
 			case s := <-room.UnRegisterSessionChannel:
 				for i, ss := range room.rtcSessions {
 					if ss == s {
+						room.sessionsLock.Lock()
 						room.rtcSessions = append(room.rtcSessions[:i], room.rtcSessions[i+1:]...)
+						room.sessionsLock.Unlock()
+
 						break
 					}
 				}

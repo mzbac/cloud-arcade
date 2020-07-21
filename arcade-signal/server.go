@@ -1,17 +1,19 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 )
 
 type Server struct {
-	browserClients map[*Client]bool
-	workerClients  map[*Client]bool
-
+	browserClients          map[*Client]bool
+	workerClients           map[*Client]bool
+	games                   map[string]string
 	registerBrowserClient   chan *Client
 	unregisterBrowserClient chan *Client
 	registerWorkerClients   chan *Client
 	unregisterWorkerClients chan *Client
+	registerGame            chan [2]string
 }
 
 func NewServer() *Server {
@@ -22,6 +24,8 @@ func NewServer() *Server {
 		workerClients:           make(map[*Client]bool),
 		registerWorkerClients:   make(chan *Client),
 		unregisterWorkerClients: make(chan *Client),
+		games:                   make(map[string]string),
+		registerGame:            make(chan [2]string),
 	}
 }
 
@@ -49,11 +53,27 @@ func (h *Server) run() {
 				delete(h.workerClients, client)
 				close(client.send)
 			}
+
+		case game := <-h.registerGame:
+			h.games[game[0]] = game[1]
 		}
 	}
 }
 
 func (h *Server) RouteBrowser(client *Client) {
+
+	client.recvCallback["getGames"] = func(req Message) {
+		log.Println("received getGames:")
+		data, err := json.Marshal(h.games)
+		if err != nil {
+			return
+		}
+		client.send <- Message{
+			ID:   "games",
+			Data: string(data),
+		}
+
+	}
 	client.recvCallback["initwebrtc"] = func(req Message) {
 		log.Println("received initwebrtc session id :", req.SessionID)
 		for k := range h.workerClients {
@@ -125,5 +145,10 @@ func (h *Server) RouteWorker(client *Client) {
 				break
 			}
 		}
+	}
+
+	client.recvCallback["gameInfo"] = func(req Message) {
+		log.Println("received worker gameInfo", req.Data)
+		h.registerGame <- [2]string{client.id, req.Data}
 	}
 }

@@ -1,13 +1,15 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useContext, useState } from "react";
 import { fromEvent, interval, animationFrame } from "rxjs";
 import { withLatestFrom, map, merge } from "rxjs/operators";
 import { Card, Col, Row } from "antd";
-
+import { store } from "./store";
+import { useParams } from "react-router-dom";
 import {
   QuestionCircleOutlined,
   ShareAltOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
+import Keyboard from "./components/keyboard";
 
 import "./App.css";
 
@@ -44,38 +46,27 @@ const keyMap = {
 };
 
 function App() {
+  const [showKeyboard, setShowKeyboard] = useState(true);
+
+  const { state } = useContext(store);
+  const { id: workerID } = useParams();
+  const { conn, pc, games } = state;
   useEffect(() => {
-    const workerID = "5909342a-8d8e-4b93-adf8-82ed0905d706";
     let inputChannel;
-    let mediaStream = new MediaStream();
-
-    let pc = new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: "stun:stun.l.google.com:19302",
-        },
-      ],
-    });
-
+    const mediaStream = new MediaStream();
     pc.oniceconnectionstatechange = (e) => console.log(pc.iceConnectionState);
 
     pc.ontrack = function (event) {
-      console.log("on track ready");
       mediaStream.addTrack(event.track);
     };
 
-    const conn = new WebSocket("ws://localhost:3000/ws");
     pc.ondatachannel = (e) => {
       inputChannel = e.channel;
       inputChannel.onopen = () => {
-        // inputReady = true;
         const j = {
           ID: "joinRoom",
           SessionID: workerID,
         };
-
-        console.log("input ready");
-
         conn.send(JSON.stringify(j));
         const el = document.getElementById("remoteVideos");
         el.srcObject = mediaStream;
@@ -85,12 +76,23 @@ function App() {
         console.log("[rtcp] the input channel has closed");
     };
 
-    conn.onclose = function (evt) {
-      console.log(evt);
-    };
+    if (conn.readyState === WebSocket.OPEN) {
+      const init = {
+        ID: "initwebrtc",
+        SessionID: workerID,
+      };
+      conn.send(JSON.stringify(init));
+    } else {
+      conn.addEventListener("open", function (evt) {
+        const init = {
+          ID: "initwebrtc",
+          SessionID: workerID,
+        };
+        conn.send(JSON.stringify(init));
+      });
+    }
     conn.onmessage = async (evt) => {
       const msg = JSON.parse(evt.data);
-
       if (msg.id === "offer") {
         await pc.setRemoteDescription(
           new RTCSessionDescription(JSON.parse(atob(msg.data)))
@@ -116,13 +118,6 @@ function App() {
       }
     };
 
-    conn.onopen = () => {
-      const init = {
-        ID: "initwebrtc",
-        SessionID: workerID,
-      };
-      conn.send(JSON.stringify(init));
-    };
     pc.onicecandidate = (event) => {
       if (event.candidate != null) {
         const candidate = JSON.stringify(event.candidate);
@@ -150,7 +145,7 @@ function App() {
     const game$ = interval(1000 / 60, animationFrame).pipe(
       withLatestFrom(keyPress)
     );
-    game$.subscribe(() => {
+    const handler = game$.subscribe(() => {
       let inputBitmap = new Uint16Array(1);
 
       for (let i = 0; i < Object.keys(joypad).length; i++) {
@@ -158,27 +153,30 @@ function App() {
       }
 
       if (inputChannel) inputChannel.send(inputBitmap);
-      // console.log(inputBitmap[0]);
     });
     return () => {
-      game$.unsubscribe();
+      handler.unsubscribe();
     };
-  }, []);
+  }, [conn, pc, workerID]);
   return (
     <div className="App">
       <Row>
         <Col className="cardContainer">
           <Card
             className="playerContainer"
-            title="The King of Fighters '97"
+            title={games ? games[workerID] : ""}
             actions={[
               <SettingOutlined key="setting" />,
-              <QuestionCircleOutlined key="question" />,
+              <QuestionCircleOutlined
+                key="question"
+                onClick={() => setShowKeyboard(!showKeyboard)}
+              />,
               <ShareAltOutlined key="share" />,
             ]}
           >
             <video autoPlay id="remoteVideos" className="player"></video>
           </Card>
+          {showKeyboard ? <Keyboard /> : null}
         </Col>
       </Row>
     </div>

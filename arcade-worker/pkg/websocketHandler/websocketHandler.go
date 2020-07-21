@@ -63,7 +63,10 @@ func (h *Handler) Run() {
 	h.route()
 	go h.listenRecv(conn)
 	go h.listenSend(conn)
-
+	h.send <- Message{
+		ID:   "gameInfo",
+		Data: h.room.GameName,
+	}
 }
 
 func createWSConnection(ourl *url.URL) (*websocket.Conn, error) {

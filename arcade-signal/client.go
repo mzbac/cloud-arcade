@@ -104,6 +104,7 @@ func (c *Client) ListenSend() {
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Println("client ticker send failed", err)
 				return
 			}
 		}

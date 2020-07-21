@@ -1,51 +1,36 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Card, Row } from "antd";
 import background from "./arcade-machine.svg";
 import "./home.css";
+import { store } from "./store";
+import { useHistory } from "react-router-dom";
 
 const { Meta } = Card;
 function Home() {
+  const { state } = useContext(store);
+  const { games } = state;
+  const history = useHistory();
+
   return (
     <div className="site-card-wrapper">
       <Row className="arcadeCard">
-        <Card
-          hoverable
-          style={{ width: 240, margin: 10, padding: 5 }}
-          cover={<img alt="backgroundimage" src={background} />}
-        >
-          <Meta title="Europe Street beat" />
-        </Card>
-        <Card
-          hoverable
-          style={{ width: 240, margin: 10, padding: 5 }}
-          cover={<img alt="backgroundimage" src={background} />}
-        >
-          <Meta title="Europe Street beat" />
-        </Card>
-        {/* <Card
-          hoverable
-          style={{ width: 240, margin: 10 }}
-          cover={
-            <img
-              alt="example"
-              src="https://image.shutterstock.com/image-vector/retro-arcade-machine-plugged-pixel-600w-327498875.jpg"
-            />
-          }
-        >
-          <Meta title="Europe Street beat" />
-        </Card>
-        <Card
-          hoverable
-          style={{ width: 240, margin: 10 }}
-          cover={
-            <img
-              alt="example"
-              src="https://image.shutterstock.com/image-vector/retro-arcade-machine-plugged-pixel-600w-327498875.jpg"
-            />
-          }
-        >
-          <Meta title="Europe Street beat" />
-        </Card> */}
+        {games
+          ? Object.entries(games).map((g) => {
+              return (
+                <Card
+                  onClick={() => {
+                    history.push(`/game/${g[0]}`);
+                  }}
+                  hoverable
+                  key={g[0]}
+                  style={{ width: 240, margin: 10, padding: 5 }}
+                  cover={<img alt="backgroundimage" src={background} />}
+                >
+                  <Meta title={g[1]} />
+                </Card>
+              );
+            })
+          : null}
       </Row>
     </div>
   );
