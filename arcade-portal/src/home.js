@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { Card, Row } from "antd";
 import background from "./arcade-machine.svg";
 import "./home.css";
@@ -7,10 +7,34 @@ import { useHistory } from "react-router-dom";
 
 const { Meta } = Card;
 function Home() {
-  const { state } = useContext(store);
-  const { games } = state;
+  const { state, dispatch } = useContext(store);
+  const { games, conn } = state;
   const history = useHistory();
-
+  useEffect(() => {
+    if (conn.readyState === WebSocket.CLOSED) {
+      const conn = new WebSocket("ws://35.189.21.9:8000/ws");
+      conn.onopen = () => {
+        const req = {
+          ID: "getGames",
+        };
+        conn.send(JSON.stringify(req));
+      };
+      conn.onclose = function (evt) {
+        console.log(evt);
+      };
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          {
+            urls: "stun:stun.l.google.com:19302",
+          },
+        ],
+      });
+      dispatch({
+        type: "newconnection",
+        payload: { conn, pc },
+      });
+    }
+  }, [dispatch]);
   return (
     <div className="site-card-wrapper">
       <Row className="arcadeCard">

@@ -1,6 +1,6 @@
 import React, { createContext, useReducer } from "react";
 
-const conn = new WebSocket("ws://localhost:3000/ws");
+const conn = new WebSocket("ws://35.189.21.9:8000/ws");
 conn.onopen = () => {
   const req = {
     ID: "getGames",
@@ -29,6 +29,10 @@ const StateProvider = ({ children }) => {
     switch (action.type) {
       case "games":
         return { ...state, games: action.payload };
+      case "newconnection":
+        return { ...state, ...action.payload };
+      case "updatePlayerCount":
+        return { ...state, currentPlayersInRomm: action.payload };
       default:
         throw new Error();
     }
@@ -38,6 +42,12 @@ const StateProvider = ({ children }) => {
     if (msg.id === "games") {
       dispatch({
         type: "games",
+        payload: JSON.parse(msg.data),
+      });
+    }
+    if (msg.id === "updatePlayerCount") {
+      dispatch({
+        type: "updatePlayerCount",
         payload: JSON.parse(msg.data),
       });
     }

@@ -151,4 +151,11 @@ func (h *Server) RouteWorker(client *Client) {
 		log.Println("received worker gameInfo", req.Data)
 		h.registerGame <- [2]string{client.id, req.Data}
 	}
+
+	client.recvCallback["updatePlayerCount"] = func(req Message) {
+		log.Println("received worker updatePlayerCount")
+		for k := range h.browserClients {
+			k.send <- req
+		}
+	}
 }

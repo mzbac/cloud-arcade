@@ -43,19 +43,25 @@ type Room struct {
 	// GameName
 	GameName     string
 	sessionsLock *sync.Mutex
+
+	UpdatePlayerCount chan int
+
+	PlayerMap map[int]*WebRTCClient.WebRTCClient
 }
 
 func NewRoom() *Room {
 
-	gameInfo := gamelist.GetGameInfo("./assets/games/kof97.zip")
+	gameInfo := gamelist.GetGameInfo("./assets/games/ssriders.zip")
 
 	inputChannel := make(chan nanoarch.InputEvent, 100)
 	sessionChannel := make(chan *WebRTCClient.WebRTCClient)
 	unregisterSessionChannel := make(chan *WebRTCClient.WebRTCClient)
+	updatePlayerCount := make(chan int, 100)
+	playerMap := map[int]*WebRTCClient.WebRTCClient{}
 
 	room := &Room{
 		ID:                       "roomID",
-		GameName:                 "The King of Fighters '97",
+		GameName:                 "Sunset riders",
 		inputChannel:             inputChannel,
 		imageChannel:             nil,
 		IsRunning:                true,
@@ -64,6 +70,8 @@ func NewRoom() *Room {
 		RegisterSessionChannel:   sessionChannel,
 		UnRegisterSessionChannel: unregisterSessionChannel,
 		sessionsLock:             &sync.Mutex{},
+		UpdatePlayerCount:        updatePlayerCount,
+		PlayerMap:                playerMap,
 	}
 
 	// Check if room is on local storage, if not, pull from GCS to local storage
@@ -104,24 +112,45 @@ func NewRoom() *Room {
 		for {
 			select {
 			case s := <-room.RegisterSessionChannel:
+				room.sessionsLock.Lock()
+				skip := false
 				for _, ss := range room.rtcSessions {
-					if ss == s {
+					if ss.ID == s.ID {
+						skip = true
 						break
 					}
 				}
-				room.sessionsLock.Lock()
-				room.rtcSessions = append(room.rtcSessions, s)
+				if !skip {
+					room.rtcSessions = append(room.rtcSessions, s)
+					room.UpdatePlayerCount <- len(room.rtcSessions)
+					playerIndex := -1
+					for i := 0; i < 8; i++ {
+						session, _ := room.PlayerMap[i]
+						if session == nil {
+							room.PlayerMap[i] = s
+							playerIndex = i
+							break
+						}
+					}
+					go room.startWebRTCSession(s, playerIndex)
+				}
+
 				room.sessionsLock.Unlock()
 
-				go room.startWebRTCSession(s, len(room.rtcSessions)-1)
-
 			case s := <-room.UnRegisterSessionChannel:
+				for i := 0; i < 8; i++ {
+					session, _ := room.PlayerMap[i]
+					if session == s {
+						room.PlayerMap[i] = nil
+						break
+					}
+				}
 				for i, ss := range room.rtcSessions {
 					if ss == s {
 						room.sessionsLock.Lock()
 						room.rtcSessions = append(room.rtcSessions[:i], room.rtcSessions[i+1:]...)
+						room.UpdatePlayerCount <- len(room.rtcSessions)
 						room.sessionsLock.Unlock()
-
 						break
 					}
 				}

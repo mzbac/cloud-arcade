@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/mzbac/cloud-arcade/arcade-worker/pkg/config"
 
 	"github.com/pion/webrtc/v3"
@@ -65,6 +66,7 @@ type WebRTCClient struct {
 
 func NewWebRTC() *WebRTCClient {
 	w := &WebRTCClient{
+		ID:           uuid.Must(uuid.NewV4()).String(),
 		ImageChannel: make(chan WebFrame, 30),
 		AudioChannel: make(chan []byte, 1),
 		InputChannel: make(chan []byte, 100),
@@ -137,6 +139,7 @@ func (w *WebRTCClient) StartClient(iceCB OnIceCallback) (string, error) {
 	inputTrack.OnClose(func() {
 		log.Println("Data channel closed")
 		log.Println("Closed webrtc")
+		w.StopClient()
 	})
 
 	// WebRTC state callback
@@ -210,7 +213,9 @@ func (w *WebRTCClient) StopClient() {
 	close(w.AudioChannel)
 	close(w.InputChannel)
 }
-
+func (w *WebRTCClient) IsStop() bool {
+	return !w.isConnected
+}
 func (w *WebRTCClient) startStreaming(vp8Track *webrtc.Track, opusTrack *webrtc.Track) {
 	log.Println("Start streaming")
 	// receive frame buffer

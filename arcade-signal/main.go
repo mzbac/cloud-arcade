@@ -6,11 +6,13 @@ import (
 	"net/http"
 )
 
-var addr = flag.String("addr", ":3000", "http service address")
+var addr = flag.String("addr", ":8000", "http service address")
 
 func main() {
 	server := NewServer()
 	go server.run()
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		ServeBrowserWs(server, w, r)
 	})
@@ -21,5 +23,5 @@ func main() {
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
-}
 
+}

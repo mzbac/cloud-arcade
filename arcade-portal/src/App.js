@@ -12,6 +12,7 @@ import {
 import Keyboard from "./components/keyboard";
 
 import "./App.css";
+const { Meta } = Card;
 
 const joypad = {
   JOYPAD_A: 0,
@@ -50,7 +51,7 @@ function App() {
 
   const { state } = useContext(store);
   const { id: workerID } = useParams();
-  const { conn, pc, games } = state;
+  const { conn, pc, games, currentPlayersInRomm } = state;
   useEffect(() => {
     let inputChannel;
     const mediaStream = new MediaStream();
@@ -125,7 +126,7 @@ function App() {
         console.log(btoa(candidate));
         const c = {
           ID: "candidate",
-          Data: btoa(btoa(candidate)),
+          Data: btoa(candidate),
           SessionID: workerID,
         };
 
@@ -156,6 +157,7 @@ function App() {
     });
     return () => {
       handler.unsubscribe();
+      conn.close();
     };
   }, [conn, pc, workerID]);
   return (
@@ -175,6 +177,7 @@ function App() {
             ]}
           >
             <video autoPlay id="remoteVideos" className="player"></video>
+            <Meta title={`Current players ${currentPlayersInRomm}`} />
           </Card>
           {showKeyboard ? <Keyboard /> : null}
         </Col>

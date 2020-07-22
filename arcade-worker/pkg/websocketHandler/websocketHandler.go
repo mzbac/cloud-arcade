@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -50,7 +51,7 @@ func (h *Handler) Run() {
 
 	signalServerURL := url.URL{
 		Scheme: "ws",
-		Host:   "localhost:3000",
+		Host:   "35.189.21.9:8000",
 		Path:   "/wws",
 	}
 	log.Println("Worker connecting to signal:", signalServerURL.String())
@@ -67,6 +68,43 @@ func (h *Handler) Run() {
 		ID:   "gameInfo",
 		Data: h.room.GameName,
 	}
+	go func() {
+		defer close(h.room.UpdatePlayerCount)
+		for {
+			select {
+			case count, ok := <-h.room.UpdatePlayerCount:
+				if !ok {
+					continue
+				}
+				h.send <- Message{
+					ID:   "updatePlayerCount",
+					Data: strconv.Itoa(count),
+				}
+			}
+		}
+
+	}()
+
+	go func() {
+		ticker := time.NewTicker(writeWait)
+
+		defer func() {
+			ticker.Stop()
+		}()
+		for {
+			select {
+			case <-ticker.C:
+				for key, element := range h.sessions {
+					if element.IsStop() {
+						element.StopClient()
+						delete(h.sessions, key)
+						h.room.UnRegisterSessionChannel <- element
+					}
+				}
+
+			}
+		}
+	}()
 }
 
 func createWSConnection(ourl *url.URL) (*websocket.Conn, error) {
@@ -197,7 +235,7 @@ func (h *Handler) route() {
 	}
 
 	h.recvCallback["joinRoom"] = func(req Message) {
-		log.Println("received joinRoom")
+		log.Println("received joinRoom", req.SessionID)
 		session, ok := h.sessions[req.SessionID]
 		if !ok {
 			log.Println("session doesn't exist")
@@ -205,10 +243,11 @@ func (h *Handler) route() {
 		}
 
 		h.room.RegisterSessionChannel <- session
+
 	}
 
 	h.recvCallback["terminateSession"] = func(req Message) {
-		log.Println("received terminateSession")
+		log.Println("received terminateSession", req.SessionID)
 		session, ok := h.sessions[req.SessionID]
 		if ok {
 			session.StopClient()
