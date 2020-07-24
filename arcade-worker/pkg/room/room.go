@@ -51,7 +51,7 @@ type Room struct {
 
 func NewRoom() *Room {
 
-	gameInfo := gamelist.GetGameInfo("./assets/games/ssriders.zip")
+	gameInfo := gamelist.GetGameInfo("./assets/games/sf2ceua.zip")
 
 	inputChannel := make(chan nanoarch.InputEvent, 100)
 	sessionChannel := make(chan *WebRTCClient.WebRTCClient)
@@ -61,7 +61,7 @@ func NewRoom() *Room {
 
 	room := &Room{
 		ID:                       "roomID",
-		GameName:                 "Sunset riders",
+		GameName:                 "Street Fighter II' - Champion Edition",
 		inputChannel:             inputChannel,
 		imageChannel:             nil,
 		IsRunning:                true,
