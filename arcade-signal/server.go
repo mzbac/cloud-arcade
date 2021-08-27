@@ -51,6 +51,7 @@ func (h *Server) run() {
 		case client := <-h.unregisterWorkerClients:
 			if _, ok := h.workerClients[client]; ok {
 				delete(h.workerClients, client)
+				delete(h.games, client.id)
 				close(client.send)
 			}
 
