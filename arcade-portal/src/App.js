@@ -46,6 +46,21 @@ const keyMap = {
   [joypad.JOYPAD_START]: "Digit1",
 };
 
+const gamepadMap = {
+  [joypad.JOYPAD_LEFT]:14,
+  [joypad.JOYPAD_UP]: 12,
+  [joypad.JOYPAD_RIGHT]: 15,
+  [joypad.JOYPAD_DOWN]: 13,
+  [joypad.JOYPAD_A]: 0,
+  [joypad.JOYPAD_B]: 1,
+  [joypad.JOYPAD_X]: 2,
+  [joypad.JOYPAD_Y]: 3,
+  [joypad.JOYPAD_L]: 4,
+  [joypad.JOYPAD_R]: 5,
+  [joypad.JOYPAD_SELECT]: 8,
+  [joypad.JOYPAD_START]: 9,
+}
+
 function App() {
   const [showKeyboard, setShowKeyboard] = useState(true);
 
@@ -134,6 +149,7 @@ function App() {
       }
     };
     const keyState = {};
+    const gamepadState = {};
     let keydown$ = fromEvent(document, "keydown").pipe(
       map((x) => (keyState[x.code] = true))
     );
@@ -141,16 +157,36 @@ function App() {
     let keyup$ = fromEvent(document, "keyup").pipe(
       map((x) => (keyState[x.code] = false))
     );
+
+    const gamepad$ = interval(1000 / 60, animationFrame).pipe(map(()=>{
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
+
+      if(gamepads[0]){
+        for (let i = 0; i < gamepads[0].buttons.length; i++) {
+          var val =  gamepads[0].buttons[i];
+          var pressed = val === 1.0;
+          if (typeof(val) === "object") {
+            pressed = val.pressed;
+            val = val.value;
+          }
+          gamepadState[i] = pressed
+        }
+      }
+
+    }))
+
     const keyPress = keydown$.pipe(merge(keyup$));
+    
+    const keyboard$ = interval(1000 / 60, animationFrame).pipe(withLatestFrom(keyPress));
 
-    const game$ = interval(1000 / 60, animationFrame).pipe(
-      withLatestFrom(keyPress)
-    );
-    const handler = game$.subscribe(() => {
+    const handler = keyboard$.pipe(merge(gamepad$)).subscribe(() => {
       let inputBitmap = new Uint16Array(1);
-
+      let keyboardBitmap = new Uint16Array(1);
+      let gamepadBitmap = new Uint16Array(1);
       for (let i = 0; i < Object.keys(joypad).length; i++) {
-        inputBitmap[0] += keyState[keyMap[i]] ? 1 << i : 0;
+        keyboardBitmap[0] += keyState[keyMap[i]] ? 1 << i : 0;
+        gamepadBitmap[0] +=  gamepadState[gamepadMap[i]] ? 1 << i : 0;
+        inputBitmap[0] = keyboardBitmap[0] | gamepadBitmap[0]
       }
 
       if (inputChannel) inputChannel.send(inputBitmap);
