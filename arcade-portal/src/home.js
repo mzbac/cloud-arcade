@@ -12,7 +12,7 @@ function Home() {
   const history = useHistory();
   useEffect(() => {
     if (conn.readyState === WebSocket.CLOSED) {
-      const conn = new WebSocket("ws://35.189.21.9:8000/ws");
+      const conn = new WebSocket("ws://20.84.42.138:8000/ws");
       conn.onopen = () => {
         const req = {
           ID: "getGames",
@@ -22,16 +22,9 @@ function Home() {
       conn.onclose = function (evt) {
         console.log(evt);
       };
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          {
-            urls: "stun:stun.l.google.com:19302",
-          },
-        ],
-      });
       dispatch({
         type: "newconnection",
-        payload: { conn, pc },
+        payload: { conn },
       });
     }
   }, [dispatch]);
