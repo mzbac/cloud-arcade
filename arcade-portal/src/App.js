@@ -47,7 +47,7 @@ const keyMap = {
 };
 
 const gamepadMap = {
-  [joypad.JOYPAD_LEFT]:14,
+  [joypad.JOYPAD_LEFT]: 14,
   [joypad.JOYPAD_UP]: 12,
   [joypad.JOYPAD_RIGHT]: 15,
   [joypad.JOYPAD_DOWN]: 13,
@@ -158,7 +158,7 @@ function App() {
     };
     const keyState = {};
     const gamepadState = {};
-    
+
     let keydown$ = fromEvent(document, "keydown").pipe(
       map((x) => (keyState[x.code] = true))
     );
@@ -167,14 +167,14 @@ function App() {
       map((x) => (keyState[x.code] = false))
     );
 
-    const gamepad$ = interval(1000 / 60, animationFrame).pipe(map(()=>{
+    const gamepad$ = interval(1000 / 60, animationFrame).pipe(map(() => {
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
 
-      if(gamepads[0]){
+      if (gamepads[0]) {
         for (let i = 0; i < gamepads[0].buttons.length; i++) {
-          var val =  gamepads[0].buttons[i];
+          var val = gamepads[0].buttons[i];
           var pressed = val === 1.0;
-          if (typeof(val) === "object") {
+          if (typeof (val) === "object") {
             pressed = val.pressed;
             val = val.value;
           }
@@ -185,22 +185,22 @@ function App() {
         const corX = gamepads[0].axes[0]; // -1 -> 1, left -> right
         const corY = gamepads[0].axes[1]; // -1 -> 1, up -> down
 
-        if(corX<=-0.5){
-          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = true
-        }else if ( corX >= 0.5){
-          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = true
-        }else{
-          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = false
-          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = false
+        if (corX <= -0.5) {
+          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] | true
+        } else if (corX >= 0.5) {
+          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] | true
+        } else {
+          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] | false
+          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] | false
         }
 
-        if(corY<=-0.5){
-          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = true
-        }else if ( corY >= 0.5){
-          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = true
-        }else{
-          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = false
-          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = false
+        if (corY <= -0.5) {
+          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = gamepadState[gamepadMap[joypad.JOYPAD_UP]] | true
+        } else if (corY >= 0.5) {
+          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] | true
+        } else {
+          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = gamepadState[gamepadMap[joypad.JOYPAD_UP]] | false
+          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] | false
         }
 
       }
@@ -208,7 +208,7 @@ function App() {
     }))
 
     const keyPress = keydown$.pipe(merge(keyup$));
-    
+
     const keyboard$ = interval(1000 / 60, animationFrame).pipe(withLatestFrom(keyPress));
 
     const handler = keyboard$.pipe(merge(gamepad$)).subscribe(() => {
@@ -217,7 +217,7 @@ function App() {
       let gamepadBitmap = new Uint16Array(1);
       for (let i = 0; i < Object.keys(joypad).length; i++) {
         keyboardBitmap[0] += keyState[keyMap[i]] ? 1 << i : 0;
-        gamepadBitmap[0] +=  gamepadState[gamepadMap[i]] ? 1 << i : 0;
+        gamepadBitmap[0] += gamepadState[gamepadMap[i]] ? 1 << i : 0;
         inputBitmap[0] = keyboardBitmap[0] | gamepadBitmap[0]
       }
 
@@ -225,6 +225,7 @@ function App() {
     });
     return () => {
       handler.unsubscribe();
+      conn.close();
       pc.close();
     };
   }, [conn, workerID]);
