@@ -1,6 +1,6 @@
 import React, { createContext, useReducer } from "react";
 
-const conn = new WebSocket("ws://35.189.21.9:8000/ws");
+const conn = new WebSocket("ws://20.84.42.138:8000/ws");
 conn.onopen = () => {
   const req = {
     ID: "getGames",
@@ -10,16 +10,9 @@ conn.onopen = () => {
 conn.onclose = function (evt) {
   console.log(evt);
 };
-const pc = new RTCPeerConnection({
-  iceServers: [
-    {
-      urls: "stun:stun.l.google.com:19302",
-    },
-  ],
-});
+
 const initialState = {
   conn,
-  pc,
 };
 const store = createContext(initialState);
 const { Provider } = store;
