@@ -66,8 +66,16 @@ function App() {
 
   const { state } = useContext(store);
   const { id: workerID } = useParams();
-  const { conn, pc, games, currentPlayersInRomm } = state;
+  const { conn, games, currentPlayersInRomm } = state;
   useEffect(() => {
+    console.log('page mount')
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: "stun:stun.l.google.com:19302",
+        },
+      ],
+    });
     let inputChannel;
     const mediaStream = new MediaStream();
     pc.oniceconnectionstatechange = (e) => console.log(pc.iceConnectionState);
@@ -150,6 +158,7 @@ function App() {
     };
     const keyState = {};
     const gamepadState = {};
+    
     let keydown$ = fromEvent(document, "keydown").pipe(
       map((x) => (keyState[x.code] = true))
     );
@@ -171,6 +180,29 @@ function App() {
           }
           gamepadState[i] = pressed
         }
+
+        // axis -> dpad
+        const corX = gamepads[0].axes[0]; // -1 -> 1, left -> right
+        const corY = gamepads[0].axes[1]; // -1 -> 1, up -> down
+
+        if(corX<=-0.5){
+          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = true
+        }else if ( corX >= 0.5){
+          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = true
+        }else{
+          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = false
+          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = false
+        }
+
+        if(corY<=-0.5){
+          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = true
+        }else if ( corY >= 0.5){
+          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = true
+        }else{
+          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = false
+          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = false
+        }
+
       }
 
     }))
@@ -193,9 +225,9 @@ function App() {
     });
     return () => {
       handler.unsubscribe();
-      conn.close();
+      pc.close();
     };
-  }, [conn, pc, workerID]);
+  }, [conn, workerID]);
   return (
     <div className="App">
       <Row>
@@ -212,7 +244,7 @@ function App() {
               <ShareAltOutlined key="share" />,
             ]}
           >
-            <video autoPlay id="remoteVideos" className="player"></video>
+            <video controls autoPlay id="remoteVideos" className="player"></video>
             <Meta title={`Current players ${currentPlayersInRomm}`} />
           </Card>
           {showKeyboard ? <Keyboard /> : null}
