@@ -1,33 +1,16 @@
-import React, { useContext, useEffect } from "react";
+import React, { useContext } from "react";
 import { Card, Row } from "antd";
 import background from "./arcade-machine.svg";
 import "./home.css";
-import { store } from "./store";
+import { AppDataContext } from "./store";
 import { useHistory } from "react-router-dom";
 
 const { Meta } = Card;
 function Home() {
-  const { state, dispatch } = useContext(store);
-  const { games, conn } = state;
+  const { state } = useContext(AppDataContext);
+  const { games } = state;
   const history = useHistory();
-  useEffect(() => {
-    if (conn.readyState === WebSocket.CLOSED) {
-      const conn = new WebSocket("ws://20.84.42.138:8000/ws");
-      conn.onopen = () => {
-        const req = {
-          ID: "getGames",
-        };
-        conn.send(JSON.stringify(req));
-      };
-      conn.onclose = function (evt) {
-        console.log(evt);
-      };
-      dispatch({
-        type: "newconnection",
-        payload: { conn },
-      });
-    }
-  }, [dispatch]);
+
   return (
     <div className="site-card-wrapper">
       <Row className="arcadeCard">

@@ -4,12 +4,12 @@ import "antd/dist/antd.css";
 import "./index.css";
 import App from "./App";
 import Home from "./home";
+import {AppDataProvider} from './store'
 
 import * as serviceWorker from "./serviceWorker";
-import { StateProvider } from "./store";
 import { BrowserRouter as Router, Switch, Route } from "react-router-dom";
 const app = (
-  <StateProvider>
+  <AppDataProvider>
     <Router>
       <Switch>
         <Route path="/game/:id">
@@ -20,7 +20,7 @@ const app = (
         </Route>
       </Switch>
     </Router>
-  </StateProvider>
+  </AppDataProvider>
 );
 ReactDOM.render(app, document.getElementById("root"));
 

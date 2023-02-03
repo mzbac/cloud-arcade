@@ -2,7 +2,7 @@ import React, { useEffect, useContext, useState } from "react";
 import { fromEvent, interval, animationFrame } from "rxjs";
 import { withLatestFrom, map, merge } from "rxjs/operators";
 import { Card, Col, Row } from "antd";
-import { store } from "./store";
+import { AppDataContext } from "./store";
 import { useParams } from "react-router-dom";
 import {
   QuestionCircleOutlined,
@@ -59,16 +59,16 @@ const gamepadMap = {
   [joypad.JOYPAD_R]: 5,
   [joypad.JOYPAD_SELECT]: 8,
   [joypad.JOYPAD_START]: 9,
-}
+};
 
 function App() {
   const [showKeyboard, setShowKeyboard] = useState(true);
 
-  const { state } = useContext(store);
+  const { state } = useContext(AppDataContext);
   const { id: workerID } = useParams();
-  const { conn, games, currentPlayersInRomm } = state;
+  const { conn, games, currentPlayersInRoom } = state;
   useEffect(() => {
-    console.log('page mount')
+    console.log("page mount");
     const pc = new RTCPeerConnection({
       iceServers: [
         {
@@ -100,48 +100,51 @@ function App() {
         console.log("[rtcp] the input channel has closed");
     };
 
-    if (conn.readyState === WebSocket.OPEN) {
+    if (conn?.readyState === WebSocket.OPEN) {
       const init = {
         ID: "initwebrtc",
         SessionID: workerID,
       };
       conn.send(JSON.stringify(init));
     } else {
-      conn.addEventListener("open", function (evt) {
-        const init = {
-          ID: "initwebrtc",
-          SessionID: workerID,
-        };
-        conn.send(JSON.stringify(init));
-      });
+      if (conn) {
+        conn.addEventListener("open", function (evt) {
+          const init = {
+            ID: "initwebrtc",
+            SessionID: workerID,
+          };
+          conn.send(JSON.stringify(init));
+        });
+      }
     }
-    conn.onmessage = async (evt) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id === "offer") {
-        await pc.setRemoteDescription(
-          new RTCSessionDescription(JSON.parse(atob(msg.data)))
-        );
-        const answer = await pc.createAnswer();
-        answer.sdp = answer.sdp.replace(
-          /(a=fmtp:111 .*)/g,
-          "$1;stereo=1;sprop-stereo=1"
-        );
-        await pc.setLocalDescription(answer);
-        const resp = {
-          ID: "answer",
-          Data: btoa(JSON.stringify(answer)),
-          SessionID: workerID,
-        };
-        conn.send(JSON.stringify(resp));
-      }
+    if (conn) {
+      conn.onmessage = async (evt) => {
+        const msg = JSON.parse(evt.data);
+        if (msg.id === "offer") {
+          await pc.setRemoteDescription(
+            new RTCSessionDescription(JSON.parse(atob(msg.data)))
+          );
+          const answer = await pc.createAnswer();
+          answer.sdp = answer.sdp.replace(
+            /(a=fmtp:111 .*)/g,
+            "$1;stereo=1;sprop-stereo=1"
+          );
+          await pc.setLocalDescription(answer);
+          const resp = {
+            ID: "answer",
+            Data: btoa(JSON.stringify(answer)),
+            SessionID: workerID,
+          };
+          conn.send(JSON.stringify(resp));
+        }
 
-      if (msg.id === "candidate") {
-        const d = atob(msg.data);
-        const candidate = new RTCIceCandidate(JSON.parse(d));
-        pc.addIceCandidate(candidate);
-      }
-    };
-
+        if (msg.id === "candidate") {
+          const d = atob(msg.data);
+          const candidate = new RTCIceCandidate(JSON.parse(d));
+          pc.addIceCandidate(candidate);
+        }
+      };
+    }
     pc.onicecandidate = (event) => {
       if (event.candidate != null) {
         const candidate = JSON.stringify(event.candidate);
@@ -167,49 +170,63 @@ function App() {
       map((x) => (keyState[x.code] = false))
     );
 
-    const gamepad$ = interval(1000 / 60, animationFrame).pipe(map(() => {
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
+    const gamepad$ = interval(1000 / 60, animationFrame).pipe(
+      map(() => {
+        const gamepads = navigator.getGamepads
+          ? navigator.getGamepads()
+          : navigator.webkitGetGamepads
+          ? navigator.webkitGetGamepads()
+          : [];
 
-      if (gamepads[0]) {
-        for (let i = 0; i < gamepads[0].buttons.length; i++) {
-          var val = gamepads[0].buttons[i];
-          var pressed = val === 1.0;
-          if (typeof (val) === "object") {
-            pressed = val.pressed;
-            val = val.value;
+        if (gamepads[0]) {
+          for (let i = 0; i < gamepads[0].buttons.length; i++) {
+            var val = gamepads[0].buttons[i];
+            var pressed = val === 1.0;
+            if (typeof val === "object") {
+              pressed = val.pressed;
+              val = val.value;
+            }
+            gamepadState[i] = pressed;
           }
-          gamepadState[i] = pressed
+
+          // axis -> dpad
+          const corX = gamepads[0].axes[0]; // -1 -> 1, left -> right
+          const corY = gamepads[0].axes[1]; // -1 -> 1, up -> down
+
+          if (corX <= -0.5) {
+            gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] | true;
+          } else if (corX >= 0.5) {
+            gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] | true;
+          } else {
+            gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] | false;
+            gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] | false;
+          }
+
+          if (corY <= -0.5) {
+            gamepadState[gamepadMap[joypad.JOYPAD_UP]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_UP]] | true;
+          } else if (corY >= 0.5) {
+            gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] | true;
+          } else {
+            gamepadState[gamepadMap[joypad.JOYPAD_UP]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_UP]] | false;
+            gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] =
+              gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] | false;
+          }
         }
-
-        // axis -> dpad
-        const corX = gamepads[0].axes[0]; // -1 -> 1, left -> right
-        const corY = gamepads[0].axes[1]; // -1 -> 1, up -> down
-
-        if (corX <= -0.5) {
-          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] | true
-        } else if (corX >= 0.5) {
-          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] | true
-        } else {
-          gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] = gamepadState[gamepadMap[joypad.JOYPAD_RIGHT]] | false
-          gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] = gamepadState[gamepadMap[joypad.JOYPAD_LEFT]] | false
-        }
-
-        if (corY <= -0.5) {
-          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = gamepadState[gamepadMap[joypad.JOYPAD_UP]] | true
-        } else if (corY >= 0.5) {
-          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] | true
-        } else {
-          gamepadState[gamepadMap[joypad.JOYPAD_UP]] = gamepadState[gamepadMap[joypad.JOYPAD_UP]] | false
-          gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] = gamepadState[gamepadMap[joypad.JOYPAD_DOWN]] | false
-        }
-
-      }
-
-    }))
+      })
+    );
 
     const keyPress = keydown$.pipe(merge(keyup$));
 
-    const keyboard$ = interval(1000 / 60, animationFrame).pipe(withLatestFrom(keyPress));
+    const keyboard$ = interval(1000 / 60, animationFrame).pipe(
+      withLatestFrom(keyPress)
+    );
 
     const handler = keyboard$.pipe(merge(gamepad$)).subscribe(() => {
       let inputBitmap = new Uint16Array(1);
@@ -218,15 +235,15 @@ function App() {
       for (let i = 0; i < Object.keys(joypad).length; i++) {
         keyboardBitmap[0] += keyState[keyMap[i]] ? 1 << i : 0;
         gamepadBitmap[0] += gamepadState[gamepadMap[i]] ? 1 << i : 0;
-        inputBitmap[0] = keyboardBitmap[0] | gamepadBitmap[0]
+        inputBitmap[0] = keyboardBitmap[0] | gamepadBitmap[0];
       }
 
       if (inputChannel) inputChannel.send(inputBitmap);
     });
     return () => {
-      handler.unsubscribe();
-      conn.close();
-      pc.close();
+      if (handler) handler.unsubscribe();
+      if (conn) conn.close();
+      if (pc) pc.close();
     };
   }, [conn, workerID]);
   return (
@@ -245,8 +262,12 @@ function App() {
               <ShareAltOutlined key="share" />,
             ]}
           >
-            <video controls autoPlay id="remoteVideos" className="player"></video>
-            <Meta title={`Current players ${currentPlayersInRomm}`} />
+            <video
+              autoPlay
+              id="remoteVideos"
+              className="player"
+            ></video>
+            <Meta title={`Current players ${currentPlayersInRoom}`} />
           </Card>
           {showKeyboard ? <Keyboard /> : null}
         </Col>
