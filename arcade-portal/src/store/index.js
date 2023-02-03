@@ -33,13 +33,6 @@ export const AppDataProvider = ({ children }) => {
     // Update the state with the socket connection
     dispatch({ type: "UPDATE_SOCKET", payload: socket });
 
-    socket.onopen = () => {
-      const req = {
-        ID: "getGames",
-      };
-      socket.send(JSON.stringify(req));
-    };
-
     socket.onclose = function (evt) {
       console.log(evt);
     };

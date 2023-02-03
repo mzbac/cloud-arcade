@@ -88,8 +88,8 @@ function App() {
       inputChannel = e.channel;
       inputChannel.onopen = () => {
         const j = {
-          ID: "joinRoom",
-          SessionID: workerID,
+          id: "joinRoom",
+          sessionID: workerID,
         };
         conn.send(JSON.stringify(j));
         const el = document.getElementById("remoteVideos");
@@ -102,16 +102,16 @@ function App() {
 
     if (conn?.readyState === WebSocket.OPEN) {
       const init = {
-        ID: "initwebrtc",
-        SessionID: workerID,
+        id: "initwebrtc",
+        sessionID: workerID,
       };
       conn.send(JSON.stringify(init));
     } else {
       if (conn) {
         conn.addEventListener("open", function (evt) {
           const init = {
-            ID: "initwebrtc",
-            SessionID: workerID,
+            id: "initwebrtc",
+            sessionID: workerID,
           };
           conn.send(JSON.stringify(init));
         });
@@ -131,9 +131,9 @@ function App() {
           );
           await pc.setLocalDescription(answer);
           const resp = {
-            ID: "answer",
-            Data: btoa(JSON.stringify(answer)),
-            SessionID: workerID,
+            id: "answer",
+            data: btoa(JSON.stringify(answer)),
+            sessionID: workerID,
           };
           conn.send(JSON.stringify(resp));
         }
@@ -151,9 +151,9 @@ function App() {
         console.info(`[rtcp] got ice candidate: ${candidate}`);
         console.log(btoa(candidate));
         const c = {
-          ID: "candidate",
-          Data: btoa(candidate),
-          SessionID: workerID,
+          id: "candidate",
+          data: btoa(candidate),
+          sessionID: workerID,
         };
 
         conn.send(JSON.stringify(c));
