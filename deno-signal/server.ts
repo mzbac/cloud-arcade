@@ -84,6 +84,16 @@ router.get("/ws", async (ctx) => {
         }
         break;
       }
+      case "terminateSession": {
+        clientToWorker.get(socket)?.send(
+          JSON.stringify({
+            id: "terminateSession",
+            sessionID: userId,
+          })
+        );
+        clientToWorker.delete(socket);
+        break;
+      }
       default:
         console.log("shouldn't happen for client message");
         break;

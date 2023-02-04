@@ -242,8 +242,12 @@ function App() {
     });
     return () => {
       if (handler) handler.unsubscribe();
-      if (conn) conn.close();
-      if (pc) pc.close();
+      if (conn) {
+        const c = {
+          id: "terminateSession",
+        };
+        conn.send(JSON.stringify(c));
+      }
     };
   }, [conn, workerID]);
   return (
@@ -262,11 +266,7 @@ function App() {
               <ShareAltOutlined key="share" />,
             ]}
           >
-            <video
-              autoPlay
-              id="remoteVideos"
-              className="player"
-            ></video>
+            <video autoPlay id="remoteVideos" className="player"></video>
             <Meta title={`Current players ${currentPlayersInRoom}`} />
           </Card>
           {showKeyboard ? <Keyboard /> : null}
